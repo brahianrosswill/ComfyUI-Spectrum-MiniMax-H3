@@ -30,6 +30,9 @@ PublisherId = "xmarre"
 DisplayName = "Spectrum MiniMax H3"
 Icon = ""
 
+[tool.setuptools.packages.find]
+include = ["comfyui_spectrum_h3*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"

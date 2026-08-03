@@ -177,7 +177,10 @@ class SpectrumH3Runtime:
         if not bool(torch.allclose(value_tensor, value_tensor[0].expand_as(value_tensor))):
             raise RuntimeError("current predict_noise call contains multiple solver timesteps")
         value = float(value_tensor[0].item())
-        coordinate = 2.0 * (value - self._run.sigma_min) / (self._run.sigma_max - self._run.sigma_min) - 1.0
+        sigma_span = self._run.sigma_max - self._run.sigma_min
+        if not math.isfinite(sigma_span) or sigma_span <= 0.0:
+            return 0.0
+        coordinate = 2.0 * (value - self._run.sigma_min) / sigma_span - 1.0
         return float(max(-1.0, min(1.0, coordinate)))
 
     def begin_step(self, timestep: torch.Tensor | float) -> dict[str, Any]:
@@ -400,6 +403,12 @@ class SpectrumH3Runtime:
     def finalize_step(self, run_id: int, step_id: int) -> None:
         step = self._require_step(run_id, step_id)
         if not step.calls:
+            if step.fallback and self._disabled:
+                self._consecutive_forecasts = 0
+                self.stats.actual_steps += 1
+                self.stats.current_window = self._current_window
+                self._step = None
+                return
             self._disable_forecasting("solver step completed without an H3 model call")
             raise RuntimeError("Spectrum H3 solver step completed without an H3 model call")
 
@@ -417,7 +426,10 @@ class SpectrumH3Runtime:
                 raise RuntimeError("actual solver step retained a forecasted subcall")
             combined = self._aggregate_actual(step)
             if combined is not None and not self._disabled:
-                self.forecaster.update(step.coordinate, combined, take_ownership=True)
+                try:
+                    self.forecaster.update(step.coordinate, combined, take_ownership=True)
+                except ValueError as exc:
+                    self._disable_forecasting(f"actual H3 feature is incompatible with history: {exc}")
             self._consecutive_forecasts = 0
             self.stats.actual_steps += 1
             self.stats.actual_transformer_calls += len(step.actual_records)
@@ -427,7 +439,11 @@ class SpectrumH3Runtime:
                 and not self._disabled
                 and step.step_id >= self.config.warmup_steps
             ):
-                self._current_window = round(self._current_window + self.config.flex_window, 6)
+                window_ceiling = max(float(self.config.window_size), float(self.config.max_history))
+                self._current_window = min(
+                    round(self._current_window + self.config.flex_window, 6),
+                    window_ceiling,
+                )
 
         self.stats.current_window = self._current_window
         self._step = None

@@ -31,7 +31,7 @@ def test_history_weights_match_direct_coefficients(feature_dtype, ridge_lambda):
         max_history=8,
         chunk_bytes=4096,
     )
-    for coordinate, feature in zip(coords, features):
+    for coordinate, feature in zip(coords, features, strict=True):
         forecaster.update(float(coordinate), feature)
     actual = forecaster.predict(0.55, blend_weight=0.6)
     expected = _direct_prediction(coords, features, 0.55, 3, ridge_lambda, 0.6).to(feature_dtype)

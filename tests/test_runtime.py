@@ -140,6 +140,36 @@ def test_unsupported_sampler_never_enters_forecast_state():
     runtime.end_run(run_id)
 
 
+def test_invalid_sigma_span_uses_a_neutral_coordinate_on_the_native_path():
+    runtime = _runtime()
+    runtime.start_run(torch.tensor([1.0, 1.0]), "sample_euler", supported_sampler=True)
+    decision = runtime.begin_step(torch.tensor([1.0]))
+    assert decision["actual"]
+    assert decision["coordinate"] == 0.0
+    runtime.abort_step(decision["run_id"], decision["step_id"])
+    runtime.end_run(decision["run_id"])
+
+
+def test_history_dtype_change_disables_forecasting_and_keeps_actual_progress():
+    runtime = _runtime()
+    runtime.start_run(torch.linspace(1.0, 0.0, 4), "sample_euler", supported_sampler=True)
+    _actual_step(runtime, 1.0, [(LABEL, torch.ones(1, 3, 4, dtype=torch.float32))])
+    _actual_step(runtime, 2.0 / 3.0, [(LABEL, torch.ones(1, 3, 4, dtype=torch.float16))])
+    assert runtime.stats.actual_steps == 2
+    assert runtime.stats.disabled
+    assert "feature dtype changed" in runtime.disabled_reason
+
+
+def test_adaptive_window_is_capped_by_the_history_bound():
+    runtime = _runtime(flex_window=10.0, max_history=4)
+    runtime.start_run(torch.linspace(1.0, 0.0, 6), "sample_euler", supported_sampler=True)
+    _actual_step(runtime, 1.0, [(LABEL, torch.zeros(1, 3, 4))])
+    _actual_step(runtime, 0.8, [(LABEL, torch.ones(1, 3, 4))])
+    _forecast_step(runtime, 0.6)
+    _actual_step(runtime, 0.4, [(LABEL, torch.full((1, 3, 4), 3.0))])
+    assert runtime.stats.current_window == 4.0
+
+
 @pytest.mark.parametrize(
     ("flex_window", "tail_actual_steps", "expected_actual", "expected_indices"),
     [

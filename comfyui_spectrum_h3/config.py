@@ -31,7 +31,7 @@ class SpectrumH3Config:
             raise TypeError("force_actual must be a boolean")
         if not math.isfinite(self.blend_weight) or not 0.0 <= self.blend_weight <= 1.0:
             raise ValueError("blend_weight must be finite and in [0, 1]")
-        if isinstance(self.degree, bool) or self.degree < 1:
+        if isinstance(self.degree, bool) or not isinstance(self.degree, int) or self.degree < 1:
             raise ValueError("degree must be an integer >= 1")
         if not math.isfinite(self.ridge_lambda) or self.ridge_lambda < 0.0:
             raise ValueError("ridge_lambda must be finite and >= 0")
@@ -39,11 +39,23 @@ class SpectrumH3Config:
             raise ValueError("window_size must be finite and >= 1")
         if not math.isfinite(self.flex_window) or self.flex_window < 0.0:
             raise ValueError("flex_window must be finite and >= 0")
-        if isinstance(self.warmup_steps, bool) or self.warmup_steps < 0:
+        if (
+            isinstance(self.warmup_steps, bool)
+            or not isinstance(self.warmup_steps, int)
+            or self.warmup_steps < 0
+        ):
             raise ValueError("warmup_steps must be an integer >= 0")
-        if isinstance(self.tail_actual_steps, bool) or self.tail_actual_steps < 0:
+        if (
+            isinstance(self.tail_actual_steps, bool)
+            or not isinstance(self.tail_actual_steps, int)
+            or self.tail_actual_steps < 0
+        ):
             raise ValueError("tail_actual_steps must be an integer >= 0")
-        if isinstance(self.max_history, bool) or self.max_history < self.min_fit_points:
+        if (
+            isinstance(self.max_history, bool)
+            or not isinstance(self.max_history, int)
+            or self.max_history < self.min_fit_points
+        ):
             raise ValueError(
                 f"max_history must be an integer >= {self.min_fit_points} for degree {self.degree}"
             )

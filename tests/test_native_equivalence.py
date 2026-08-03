@@ -109,7 +109,7 @@ def test_forced_actual_wrapper_is_native_equivalent_and_does_not_mutate_options(
     wrapped, _ = _wrapped_call(model, runtime, 1.0, 500.0, x, context, payload)
     assert native_options == before
     assert isinstance(wrapped, list) and len(wrapped) == 2
-    for native_part, wrapped_part in zip(native, wrapped):
+    for native_part, wrapped_part in zip(native, wrapped, strict=True):
         assert native_part.shape == wrapped_part.shape
         assert native_part.dtype == wrapped_part.dtype
         torch.testing.assert_close(native_part, wrapped_part, rtol=0.0, atol=0.0)

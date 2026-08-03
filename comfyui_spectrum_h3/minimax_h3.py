@@ -45,14 +45,22 @@ def is_native_minimax_h3(inner: Any) -> bool:
         "audio_latents_dim",
         "sigma_shift_video",
         "sigma_shift_audio",
+        "use_adaln_curves",
     )
-    return class_match and all(hasattr(inner, name) for name in required)
+    if not class_match or not all(hasattr(inner, name) for name in required):
+        return False
+    if not isinstance(inner.use_adaln_curves, bool):
+        return False
+    timestep_attribute = "adaln_t_table" if inner.use_adaln_curves else "time_embedder"
+    return hasattr(inner, timestep_attribute)
 
 
 def require_native_minimax_h3(model: Any) -> tuple[Any, str]:
     inner, path = locate_minimax_h3_inner(model)
     if not is_native_minimax_h3(inner):
         actual = "missing" if inner is None else f"{type(inner).__module__}.{type(inner).__name__}"
+        if actual == "comfy.ldm.minimax.model.MiniMaxH3Model":
+            actual += " with an incompatible native attribute contract"
         raise TypeError(
             "Spectrum Apply MiniMax H3 requires ComfyUI's native "
             f"comfy.ldm.minimax.model.MiniMaxH3Model; discovered {actual}"
@@ -367,6 +375,11 @@ def diffusion_model_wrapper(
         )
     inner = executor.class_obj
     if not is_native_minimax_h3(inner):
+        runtime.fallback_current_step(
+            int(run_id),
+            int(step_id),
+            "diffusion model is not ComfyUI's native MiniMax H3",
+        )
         return executor(
             x,
             timestep,

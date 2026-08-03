@@ -245,7 +245,7 @@ class HistoryWeightForecaster:
             for offset in range(0, tail_numel, chunk_elements):
                 length = min(chunk_elements, tail_numel - offset)
                 accumulator = torch.zeros(length, device=target_device, dtype=torch.float32)
-                for scalar, entry in zip(weight_scalars, self._history):
+                for scalar, entry in zip(weight_scalars, self._history, strict=True):
                     if scalar == 0.0:
                         continue
                     source = entry.feature_flat.narrow(0, source_base + offset, length)

@@ -39,6 +39,8 @@ jobs:
           python -m pip wheel --no-deps --wheel-dir /tmp/spectrum-h3-wheel .
 
       - name: Run forecaster smoke test
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: python tests/smoke_forecaster.py
 
       - name: Run tests against native MiniMax H3

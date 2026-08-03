@@ -33,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install pytest numpy psutil safetensors einops tqdm pyyaml pillow packaging comfy-kitchen==0.2.26 comfy-aimdo==0.4.11
-          python -m pip install -e .
+          python -m pip wheel --no-deps --wheel-dir /tmp/spectrum-h3-wheel .
 
       - name: Run tests against native MiniMax H3
         env:

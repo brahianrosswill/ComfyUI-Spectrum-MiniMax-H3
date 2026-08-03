@@ -1,11 +1,19 @@
 from __future__ import annotations
 
-from .comfyui_spectrum_h3 import SpectrumH3Config, SpectrumH3Runtime
-from .comfyui_spectrum_h3.minimax_h3 import (
-    install_h3_wrapper,
-    require_native_minimax_h3,
-)
-from .comfyui_spectrum_h3.sampling import install_sampler_wrappers
+if __package__:
+    from .comfyui_spectrum_h3 import SpectrumH3Config, SpectrumH3Runtime
+    from .comfyui_spectrum_h3.minimax_h3 import (
+        install_h3_wrapper,
+        require_native_minimax_h3,
+    )
+    from .comfyui_spectrum_h3.sampling import install_sampler_wrappers
+else:
+    from comfyui_spectrum_h3 import SpectrumH3Config, SpectrumH3Runtime
+    from comfyui_spectrum_h3.minimax_h3 import (
+        install_h3_wrapper,
+        require_native_minimax_h3,
+    )
+    from comfyui_spectrum_h3.sampling import install_sampler_wrappers
 
 
 class SpectrumApplyMiniMaxH3:

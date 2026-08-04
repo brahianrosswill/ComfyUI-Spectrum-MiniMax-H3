@@ -48,6 +48,31 @@ def _loaded_names(node: ast.AST) -> set[str]:
     }
 
 
+def _delegates_to_ancestral_res(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    positional = [*node.args.posonlyargs, *node.args.args]
+    defaults = [None] * (len(positional) - len(node.args.defaults)) + list(node.args.defaults)
+    eta_default = next(
+        (default for argument, default in zip(positional, defaults, strict=True) if argument.arg == "eta"),
+        None,
+    )
+    if (
+        not isinstance(eta_default, ast.Constant)
+        or isinstance(eta_default.value, bool)
+        or not isinstance(eta_default.value, (int, float))
+        or eta_default.value <= 0
+    ):
+        return False
+    return any(
+        any(
+            keyword.arg == "eta"
+            and isinstance(keyword.value, ast.Name)
+            and keyword.value.id == "eta"
+            for keyword in call.keywords
+        )
+        for call in _named_calls(node, "res_multistep")
+    )
+
+
 def test_native_res_multistep_makes_one_model_call_per_solver_iteration():
     function = _native_sampling_functions()["res_multistep"]
     loops = [node for node in function.body if isinstance(node, (ast.For, ast.AsyncFor))]
@@ -92,7 +117,7 @@ def test_native_ancestral_variants_inject_or_delegate_to_noise(function_name):
     loaded = _loaded_names(function)
     delegates_to_ancestral_core = bool(
         _named_calls(function, "sample_euler_ancestral_RF")
-        or _named_calls(function, "res_multistep")
+        or _delegates_to_ancestral_res(function)
     )
 
     assert "noise_sampler" in loaded or delegates_to_ancestral_core

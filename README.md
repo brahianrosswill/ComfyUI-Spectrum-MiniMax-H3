@@ -105,7 +105,7 @@ For a 20-step run with the conservative settings, the sampler-aware scheduler cu
 | Sampler | Actual H3 solver steps | Forecasted solver steps | Forecast indices | Transformer-step reduction |
 |---|---:|---:|---|---:|
 | Euler | 13 | 7 | `5, 7, 9, 11, 13, 15, 17` | 35% |
-| RES multistep / CFG++ | 16 | 4 | `5, 8, 11, 14` | 20% |
+| RES multistep / CFG++ | 14 | 6 | `5, 7, 9, 11, 13, 15` | 30% |
 
 These counts are solver-step counts. CFG can execute separate conditional and unconditional H3 transformer calls on each actual solver step. End-to-end wall-clock speedup depends on output-head cost, CPU transfers, model offload, references, CFG branching, latent size, and hardware.
 
@@ -117,7 +117,7 @@ Forecasting is currently allowlisted for:
 - RES multistep (`sample_res_multistep`)
 - RES multistep CFG++ (`sample_res_multistep_cfg_pp`)
 
-The reviewed implementations make one `predict_noise` call per solver iteration. Euler feeds each approximate denoised result into the latent used by the next evaluation, so it requires one completed actual H3 evaluation after every forecast. RES multistep also stores the current denoised result as `old_denoised` for the following second-order update. A single actual evaluation after a forecast still performs its update with forecast-derived history; RES therefore requires two completed actual evaluations before another forecast and always keeps its final three solver steps native. The RES tail floor applies even when a saved workflow supplies a smaller `tail_actual_steps` value. Ancestral samplers execute native MiniMax H3 because injected noise invalidates the smooth deterministic feature trajectory used by the forecaster. Debug mode logs the exact fallback, tail, or post-forecast refresh reason. Multi-GPU parallel sampling also remains native because distributed forecast-row transactions are not yet validated.
+The reviewed implementations make one `predict_noise` call per solver iteration. Euler feeds each approximate denoised result into the latent used by the next evaluation, so it requires one completed actual H3 evaluation after every forecast. RES multistep stores each current denoised result as `old_denoised` for the following second-order update. The actual evaluation immediately after a forecast still consumes forecast-derived history, then replaces `old_denoised` with its native result before another forecast is allowed. This prevents any RES update from combining two forecasted denoised results. RES also keeps its final three solver steps native; this tail floor applies even when a saved workflow supplies a smaller `tail_actual_steps` value. Ancestral samplers execute native MiniMax H3 because injected noise invalidates the smooth deterministic feature trajectory used by the forecaster. Debug mode logs the exact fallback, tail, or post-forecast refresh reason. Multi-GPU parallel sampling also remains native because distributed forecast-row transactions are not yet validated.
 
 ## Memory design
 

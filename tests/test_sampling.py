@@ -64,10 +64,10 @@ def test_supported_h3_samplers_limit_forecast_streaks(function_name):
 
 
 @pytest.mark.parametrize("function_name", ("sample_res_multistep", "sample_res_multistep_cfg_pp"))
-def test_res_multistep_policy_clears_recurrence_and_protects_tail(function_name):
+def test_res_multistep_policy_refreshes_once_and_protects_tail(function_name):
     sampler = _sampler(function_name)
 
-    assert min_actual_steps_after_forecast(sampler) == 2
+    assert min_actual_steps_after_forecast(sampler) == 1
     assert min_tail_actual_steps(sampler) == 3
 
 

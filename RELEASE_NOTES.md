@@ -4,7 +4,7 @@ Stabilizes deterministic Euler and RES multistep audio-video forecasting and add
 
 ## Changed
 
-- Require two completed actual H3 evaluations after every RES multistep forecast so its retained `old_denoised` state is native before forecasting resumes.
+- Require one completed actual H3 evaluation after every RES multistep forecast so its retained `old_denoised` state is native before forecasting resumes.
 - Enforce a three-step actual tail for deterministic RES, including saved workflows that request a smaller tail.
 - Require one completed actual H3 evaluation after every Euler forecast to prevent late forecast streaks from accumulating temporal audio/video errors on short schedules.
 - Keep ancestral Euler and RES variants on the native path because their injected noise breaks the forecaster's smooth deterministic trajectory assumption.
@@ -27,4 +27,4 @@ Stabilizes deterministic Euler and RES multistep audio-video forecasting and add
 
 ## Current limits
 
-The supplied full-checkpoint RES A/B indicates that a three-step actual tail removes the remaining slight artifacts. The automated environment cannot decode a full MiniMax H3 generation, so broader prompt coverage, audiovisual quality, and effective speedup remain real-generation validation items.
+The supplied full-checkpoint RES A/B indicates that a three-step actual tail removes the remaining slight artifacts. That measured 20-step run completed in `1:50` with 14 actual and 6 forecast steps, compared with the supplied `2:06` native baseline. The automated environment cannot decode a full MiniMax H3 generation, so broader prompt coverage and audiovisual quality remain real-generation validation items; timings can also vary with model warmup and GPU state.

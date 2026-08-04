@@ -53,9 +53,7 @@ def max_consecutive_forecasts(sampler: Any) -> int | None:
 
 def min_actual_steps_after_forecast(sampler: Any) -> int:
     name = sampler_name(sampler)
-    if name in RES_MULTISTEP_SAMPLERS:
-        return 2
-    return 1 if name == "sample_euler" else 0
+    return 1 if name in SUPPORTED_SINGLE_CALL_SAMPLERS else 0
 
 
 def min_tail_actual_steps(sampler: Any) -> int:

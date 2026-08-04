@@ -56,7 +56,7 @@ The node accepts and returns `MODEL`. Disabled mode returns the original model o
 | `window_size` | `2.0` | Initial adaptive interval. |
 | `flex_window` | `0.75` | Amount added to the interval after a scheduled post-warmup actual step. |
 | `warmup_steps` | `5` | Initial solver steps forced to native transformer evaluation. |
-| `tail_actual_steps` | `3` | Final solver steps forced to native transformer evaluation. |
+| `tail_actual_steps` | `1` | Final solver step forced to native transformer evaluation. |
 | `max_history` | `8` | Maximum model-dtype actual feature snapshots retained on CPU. |
 | `debug` | `false` | Enables concise run, step, topology, fallback, sanitization, chunk, and teardown logs. |
 
@@ -71,7 +71,7 @@ ridge_lambda = 0.10
 window_size = 2.0
 flex_window = 0.75
 warmup_steps = 5
-tail_actual_steps = 3
+tail_actual_steps = 1
 max_history = 8
 ```
 
@@ -84,11 +84,11 @@ ridge_lambda = 0.10
 window_size = 2.0
 flex_window = 3.0
 warmup_steps = 5
-tail_actual_steps = 2
+tail_actual_steps = 1
 max_history = 8
 ```
 
-Both presets remain provisional for MiniMax H3 until real-checkpoint quality and performance measurements are available.
+Both presets remain provisional pending broader prompt, sampler, and quality coverage.
 
 ## Adaptive schedule
 
@@ -104,8 +104,8 @@ For a 20-step Euler run, the deterministic scheduler tests currently produce:
 
 | Preset | Actual H3 solver steps | Forecasted solver steps | Transformer-step reduction |
 |---|---:|---:|---:|
-| Conservative | 12 | 8 | 40% |
-| Aggressive | 9 | 11 | 55% |
+| Conservative | 10 | 10 | 50% |
+| Aggressive | 8 | 12 | 60% |
 
 These counts are solver-step counts. CFG can execute separate conditional and unconditional H3 transformer calls on each actual solver step. End-to-end wall-clock speedup depends on output-head cost, CPU transfers, model offload, references, CFG branching, latent size, and hardware.
 
@@ -167,7 +167,7 @@ Automated tests cover:
 - exact native versus wrapped forced-actual video/audio output on a deterministic tiny native H3 fixture;
 - proof that a forecast fixture invokes zero H3 transformer blocks.
 
-No full MiniMax H3 checkpoint is available in the automated environment. Real text-to-video/audio generation, reference modes, long-duration memory behavior, wall-clock speedup, VRAM/RSS peaks, decoded video metrics, audio metrics, and audiovisual synchronization remain unverified. No claim of lossless quality or production speedup is made yet.
+No full MiniMax H3 checkpoint is available in the automated environment. Real text-to-video/audio generation, reference modes, long-duration memory behavior, wall-clock speedup, VRAM/RSS peaks, decoded video metrics, audio metrics, and audiovisual synchronization remain unverified by the automated suite. No claim of lossless quality is made.
 
 ## Tests
 

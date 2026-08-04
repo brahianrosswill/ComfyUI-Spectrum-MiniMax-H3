@@ -120,7 +120,7 @@ Forecasting is currently allowlisted for:
 - RES multistep ancestral (`sample_res_multistep_ancestral`)
 - RES multistep ancestral CFG++ (`sample_res_multistep_ancestral_cfg_pp`)
 
-The reviewed implementations make one `predict_noise` call per solver iteration. RES multistep reuses the previous denoised result in its solver update without making an additional model call. Other samplers execute native MiniMax H3. Debug mode logs the exact fallback reason. Multi-GPU parallel sampling also remains native because distributed forecast-row transactions are not yet validated.
+The reviewed implementations make one `predict_noise` call per solver iteration. RES multistep reuses the previous denoised result in its second-order solver update. Spectrum therefore forces an actual H3 refresh after every RES forecast so that the update never combines two forecasted denoised results. With the default 20-step schedule this yields 13 actual and 7 forecast steps for RES. Other samplers execute native MiniMax H3. Debug mode logs the exact fallback reason. Multi-GPU parallel sampling also remains native because distributed forecast-row transactions are not yet validated.
 
 ## Memory design
 

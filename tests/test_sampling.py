@@ -4,7 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from comfyui_spectrum_h3.sampling import sampler_is_supported, sampler_name
+from comfyui_spectrum_h3.sampling import (
+    max_consecutive_forecasts,
+    sampler_is_supported,
+    sampler_name,
+)
 
 
 def _sampler(function_name: str) -> SimpleNamespace:
@@ -43,3 +47,20 @@ def test_reviewed_single_call_samplers_are_supported(function_name):
 )
 def test_unreviewed_sampler_names_do_not_match_by_prefix(function_name):
     assert not sampler_is_supported(_sampler(function_name))
+
+
+@pytest.mark.parametrize(
+    "function_name",
+    (
+        "sample_res_multistep",
+        "sample_res_multistep_cfg_pp",
+        "sample_res_multistep_ancestral",
+        "sample_res_multistep_ancestral_cfg_pp",
+    ),
+)
+def test_res_multistep_limits_forecast_streaks(function_name):
+    assert max_consecutive_forecasts(_sampler(function_name)) == 1
+
+
+def test_euler_does_not_limit_forecast_streaks():
+    assert max_consecutive_forecasts(_sampler("sample_euler")) is None

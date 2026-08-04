@@ -35,6 +35,14 @@ def _named_calls(node: ast.AST, name: str) -> list[ast.Call]:
     ]
 
 
+def _loaded_names(node: ast.AST) -> set[str]:
+    return {
+        item.id
+        for item in ast.walk(node)
+        if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load)
+    }
+
+
 def test_native_res_multistep_makes_one_model_call_per_solver_iteration():
     function = _native_sampling_functions()["res_multistep"]
     loops = [node for node in function.body if isinstance(node, (ast.For, ast.AsyncFor))]
@@ -42,6 +50,18 @@ def test_native_res_multistep_makes_one_model_call_per_solver_iteration():
     assert len(loops) == 1
     assert len(_named_calls(loops[0], "model")) == 1
     assert len(_named_calls(function, "model")) == 1
+
+
+def test_native_res_multistep_second_order_update_reuses_current_and_previous_denoised():
+    function = _native_sampling_functions()["res_multistep"]
+    assignments = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "x" for target in node.targets)
+    ]
+
+    assert any({"denoised", "old_denoised"} <= _loaded_names(node.value) for node in assignments)
 
 
 @pytest.mark.parametrize("function_name", RES_VARIANTS)

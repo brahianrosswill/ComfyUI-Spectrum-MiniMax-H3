@@ -59,6 +59,10 @@ def _forecast_step(runtime, timestep, labels=LABEL):
     return prediction
 
 
+def test_default_tail_actual_steps_is_one():
+    assert SpectrumH3Config().tail_actual_steps == 1
+
+
 def test_scheduler_counts_warmup_forecasts_recomputes_and_window_growth():
     runtime = _runtime()
     run_id = runtime.start_run(torch.linspace(1.0, 0.0, 7), "sample_euler", supported_sampler=True)
@@ -173,8 +177,8 @@ def test_adaptive_window_is_capped_by_the_history_bound():
 @pytest.mark.parametrize(
     ("flex_window", "tail_actual_steps", "expected_actual", "expected_indices"),
     [
-        (0.75, 3, 12, [0, 1, 2, 3, 4, 6, 8, 11, 15, 17, 18, 19]),
-        (3.0, 2, 9, [0, 1, 2, 3, 4, 6, 11, 18, 19]),
+        (0.75, 1, 10, [0, 1, 2, 3, 4, 6, 8, 11, 15, 19]),
+        (3.0, 1, 8, [0, 1, 2, 3, 4, 6, 11, 19]),
     ],
 )
 def test_twenty_step_preset_schedule_counts(flex_window, tail_actual_steps, expected_actual, expected_indices):

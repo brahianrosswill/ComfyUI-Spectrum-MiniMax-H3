@@ -20,20 +20,8 @@ WRAPPER_KEY = "spectrum_minimax_h3"
 SUPPORTED_SINGLE_CALL_SAMPLERS = frozenset(
     {
         "sample_euler",
-        "sample_euler_ancestral",
         "sample_res_multistep",
         "sample_res_multistep_cfg_pp",
-        "sample_res_multistep_ancestral",
-        "sample_res_multistep_ancestral_cfg_pp",
-    }
-)
-
-RES_MULTISTEP_SAMPLERS = frozenset(
-    {
-        "sample_res_multistep",
-        "sample_res_multistep_cfg_pp",
-        "sample_res_multistep_ancestral",
-        "sample_res_multistep_ancestral_cfg_pp",
     }
 )
 
@@ -53,7 +41,7 @@ def sampler_is_supported(sampler: Any) -> bool:
 
 
 def max_consecutive_forecasts(sampler: Any) -> int | None:
-    return 1 if sampler_name(sampler) in RES_MULTISTEP_SAMPLERS else None
+    return 1 if sampler_is_supported(sampler) else None
 
 
 def _binding_from_model_options(model_options: dict[str, Any] | None) -> SpectrumH3Binding | None:

@@ -100,12 +100,11 @@ Warmup and final-tail steps are actual. After warmup, with current interval `W`,
 
 After a successfully completed scheduled actual step, `W` increases by `flex_window`. A fallback actual step does not increase it. Forecasting also waits until at least `max(2, degree + 1)` actual history points exist.
 
-For a 20-step Euler run, the deterministic scheduler tests currently produce:
+For a 20-step deterministic Euler or RES run, the quality-safe scheduler currently produces:
 
-| Preset | Actual H3 solver steps | Forecasted solver steps | Transformer-step reduction |
-|---|---:|---:|---:|
-| Conservative | 10 | 10 | 50% |
-| Aggressive | 8 | 12 | 60% |
+| Actual H3 solver steps | Forecasted solver steps | Transformer-step reduction |
+|---:|---:|---:|
+| 13 | 7 | 35% |
 
 These counts are solver-step counts. CFG can execute separate conditional and unconditional H3 transformer calls on each actual solver step. End-to-end wall-clock speedup depends on output-head cost, CPU transfers, model offload, references, CFG branching, latent size, and hardware.
 
@@ -114,13 +113,10 @@ These counts are solver-step counts. CFG can execute separate conditional and un
 Forecasting is currently allowlisted for:
 
 - Euler (`sample_euler`)
-- Euler ancestral (`sample_euler_ancestral`, including ComfyUI's flow-model path)
 - RES multistep (`sample_res_multistep`)
 - RES multistep CFG++ (`sample_res_multistep_cfg_pp`)
-- RES multistep ancestral (`sample_res_multistep_ancestral`)
-- RES multistep ancestral CFG++ (`sample_res_multistep_ancestral_cfg_pp`)
 
-The reviewed implementations make one `predict_noise` call per solver iteration. RES multistep reuses the previous denoised result in its second-order solver update. Spectrum therefore forces an actual H3 refresh after every RES forecast so that the update never combines two forecasted denoised results. With the default 20-step schedule this yields 13 actual and 7 forecast steps for RES. Other samplers execute native MiniMax H3. Debug mode logs the exact fallback reason. Multi-GPU parallel sampling also remains native because distributed forecast-row transactions are not yet validated.
+The reviewed implementations make one `predict_noise` call per solver iteration. RES multistep reuses the previous denoised result in its second-order solver update. Euler feeds each approximate denoised result into the latent used by the next evaluation. MiniMax H3 jointly predicts audio and video, so Spectrum forces an actual H3 refresh after every forecast for both deterministic samplers. This bounds forecast-error accumulation and prevents late three-step forecast streaks on short schedules. Ancestral samplers execute native MiniMax H3 because injected noise invalidates the smooth deterministic feature trajectory used by the forecaster. Debug mode logs the exact fallback or refresh reason. Multi-GPU parallel sampling also remains native because distributed forecast-row transactions are not yet validated.
 
 ## Memory design
 

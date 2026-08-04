@@ -229,7 +229,7 @@ class SpectrumH3Runtime:
         forecast_limit = self._run.max_consecutive_forecasts
         if not actual and forecast_limit is not None and self._consecutive_forecasts >= forecast_limit:
             actual = True
-            reason = "sampler recurrence refresh"
+            reason = "forecast error refresh"
             advances_window = False
 
         self._step = _StepState(

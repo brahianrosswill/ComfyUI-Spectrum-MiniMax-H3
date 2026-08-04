@@ -23,11 +23,8 @@ def _sampler(function_name: str) -> SimpleNamespace:
     "function_name",
     (
         "sample_euler",
-        "sample_euler_ancestral",
         "sample_res_multistep",
         "sample_res_multistep_cfg_pp",
-        "sample_res_multistep_ancestral",
-        "sample_res_multistep_ancestral_cfg_pp",
     ),
 )
 def test_reviewed_single_call_samplers_are_supported(function_name):
@@ -40,6 +37,9 @@ def test_reviewed_single_call_samplers_are_supported(function_name):
 @pytest.mark.parametrize(
     "function_name",
     (
+        "sample_euler_ancestral",
+        "sample_res_multistep_ancestral",
+        "sample_res_multistep_ancestral_cfg_pp",
         "res_multistep",
         "sample_res_multistep_experimental",
         "sample_heun",
@@ -52,15 +52,14 @@ def test_unreviewed_sampler_names_do_not_match_by_prefix(function_name):
 @pytest.mark.parametrize(
     "function_name",
     (
+        "sample_euler",
         "sample_res_multistep",
         "sample_res_multistep_cfg_pp",
-        "sample_res_multistep_ancestral",
-        "sample_res_multistep_ancestral_cfg_pp",
     ),
 )
-def test_res_multistep_limits_forecast_streaks(function_name):
+def test_supported_h3_samplers_limit_forecast_streaks(function_name):
     assert max_consecutive_forecasts(_sampler(function_name)) == 1
 
 
-def test_euler_does_not_limit_forecast_streaks():
-    assert max_consecutive_forecasts(_sampler("sample_euler")) is None
+def test_unsupported_sampler_has_no_forecast_streak_policy():
+    assert max_consecutive_forecasts(_sampler("sample_euler_ancestral")) is None

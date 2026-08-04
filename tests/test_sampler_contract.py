@@ -9,6 +9,11 @@ import pytest
 RES_VARIANTS = (
     "sample_res_multistep",
     "sample_res_multistep_cfg_pp",
+)
+
+ANCESTRAL_VARIANTS = (
+    "sample_euler_ancestral",
+    "sample_euler_ancestral_RF",
     "sample_res_multistep_ancestral",
     "sample_res_multistep_ancestral_cfg_pp",
 )
@@ -64,9 +69,30 @@ def test_native_res_multistep_second_order_update_reuses_current_and_previous_de
     assert any({"denoised", "old_denoised"} <= _loaded_names(node.value) for node in assignments)
 
 
+def test_native_euler_makes_one_model_call_per_solver_iteration():
+    function = _native_sampling_functions()["sample_euler"]
+    loops = [node for node in function.body if isinstance(node, (ast.For, ast.AsyncFor))]
+
+    assert len(loops) == 1
+    assert len(_named_calls(loops[0], "model")) == 1
+    assert len(_named_calls(function, "model")) == 1
+
+
 @pytest.mark.parametrize("function_name", RES_VARIANTS)
 def test_native_res_variant_delegates_once_to_reviewed_core(function_name):
     function = _native_sampling_functions()[function_name]
 
     assert len(_named_calls(function, "res_multistep")) == 1
     assert not _named_calls(function, "model")
+
+
+@pytest.mark.parametrize("function_name", ANCESTRAL_VARIANTS)
+def test_native_ancestral_variants_inject_or_delegate_to_noise(function_name):
+    function = _native_sampling_functions()[function_name]
+    loaded = _loaded_names(function)
+    delegates_to_ancestral_core = bool(
+        _named_calls(function, "sample_euler_ancestral_RF")
+        or _named_calls(function, "res_multistep")
+    )
+
+    assert "noise_sampler" in loaded or delegates_to_ancestral_core

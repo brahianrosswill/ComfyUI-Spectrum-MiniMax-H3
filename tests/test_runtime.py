@@ -253,8 +253,8 @@ def test_res_multistep_refreshes_after_each_forecast_without_growing_the_window(
 
     forecast_indices = [decision["step_id"] for decision in decisions if not decision["actual"]]
     assert forecast_indices == [2, 4, 6]
-    assert decisions[3]["reason"] == "sampler recurrence refresh"
-    assert decisions[5]["reason"] == "sampler recurrence refresh"
+    assert decisions[3]["reason"] == "forecast error refresh"
+    assert decisions[5]["reason"] == "forecast error refresh"
     assert runtime.stats.current_window == pytest.approx(4.0)
 
 
@@ -263,6 +263,50 @@ def test_twenty_step_res_schedule_never_combines_adjacent_forecasts():
     runtime.start_run(
         torch.linspace(1.0, 0.0, 21),
         "sample_res_multistep",
+        supported_sampler=True,
+        max_consecutive_forecasts=1,
+    )
+    forecast_indices = []
+    previous_was_forecast = False
+    for step, sigma in enumerate(torch.linspace(1.0, 0.05, 20)):
+        decision = runtime.begin_step(sigma)
+        call_id, actual = runtime.begin_model_call(
+            decision["run_id"],
+            decision["step_id"],
+            topology=TOPOLOGY,
+            labels=LABEL,
+            expected_shape=(1, 3, 4),
+        )
+        if actual:
+            runtime.observe_actual(
+                decision["run_id"],
+                decision["step_id"],
+                call_id,
+                torch.full((1, 3, 4), float(step)),
+            )
+        else:
+            assert not previous_was_forecast
+            forecast_indices.append(step)
+            runtime.predict(
+                decision["run_id"],
+                decision["step_id"],
+                call_id,
+                device=torch.device("cpu"),
+                dtype=torch.float32,
+            )
+        previous_was_forecast = not actual
+        runtime.finalize_step(decision["run_id"], decision["step_id"])
+
+    assert forecast_indices == [5, 7, 9, 11, 13, 15, 17]
+    assert runtime.stats.actual_steps == 13
+    assert runtime.stats.forecast_steps == 7
+
+
+def test_twenty_step_euler_schedule_refreshes_between_forecasts():
+    runtime = SpectrumH3Runtime(SpectrumH3Config())
+    runtime.start_run(
+        torch.linspace(1.0, 0.0, 21),
+        "sample_euler",
         supported_sampler=True,
         max_consecutive_forecasts=1,
     )

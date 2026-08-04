@@ -94,6 +94,32 @@ def test_native_res_multistep_second_order_update_reuses_current_and_previous_de
     assert any({"denoised", "old_denoised"} <= _loaded_names(node.value) for node in assignments)
 
 
+def test_native_res_multistep_replaces_old_denoised_after_second_order_update():
+    function = _native_sampling_functions()["res_multistep"]
+    loop = next(node for node in function.body if isinstance(node, (ast.For, ast.AsyncFor)))
+    second_order_updates = [
+        node
+        for node in ast.walk(loop)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "x" for target in node.targets)
+        and "old_denoised" in _loaded_names(node.value)
+    ]
+    history_updates = [
+        node
+        for node in ast.walk(loop)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "old_denoised" for target in node.targets)
+        and isinstance(node.value, ast.Name)
+        and node.value.id in {"denoised", "uncond_denoised"}
+    ]
+
+    assert second_order_updates
+    assert history_updates
+    assert min(node.lineno for node in history_updates) > max(
+        node.lineno for node in second_order_updates
+    )
+
+
 def test_native_euler_makes_one_model_call_per_solver_iteration():
     function = _native_sampling_functions()["sample_euler"]
     loops = [node for node in function.body if isinstance(node, (ast.For, ast.AsyncFor))]

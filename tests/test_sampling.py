@@ -6,6 +6,8 @@ import pytest
 
 from comfyui_spectrum_h3.sampling import (
     max_consecutive_forecasts,
+    min_actual_steps_after_forecast,
+    min_tail_actual_steps,
     sampler_is_supported,
     sampler_name,
 )
@@ -61,5 +63,24 @@ def test_supported_h3_samplers_limit_forecast_streaks(function_name):
     assert max_consecutive_forecasts(_sampler(function_name)) == 1
 
 
+@pytest.mark.parametrize("function_name", ("sample_res_multistep", "sample_res_multistep_cfg_pp"))
+def test_res_multistep_policy_clears_recurrence_and_protects_tail(function_name):
+    sampler = _sampler(function_name)
+
+    assert min_actual_steps_after_forecast(sampler) == 2
+    assert min_tail_actual_steps(sampler) == 3
+
+
+def test_euler_policy_keeps_one_refresh_and_user_tail():
+    sampler = _sampler("sample_euler")
+
+    assert min_actual_steps_after_forecast(sampler) == 1
+    assert min_tail_actual_steps(sampler) == 0
+
+
 def test_unsupported_sampler_has_no_forecast_streak_policy():
-    assert max_consecutive_forecasts(_sampler("sample_euler_ancestral")) is None
+    sampler = _sampler("sample_euler_ancestral")
+
+    assert max_consecutive_forecasts(sampler) is None
+    assert min_actual_steps_after_forecast(sampler) == 0
+    assert min_tail_actual_steps(sampler) == 0

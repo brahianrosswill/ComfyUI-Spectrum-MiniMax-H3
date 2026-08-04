@@ -69,6 +69,8 @@ class _RunState:
     sigma_max: float
     supported_sampler: bool
     max_consecutive_forecasts: int | None
+    min_actual_steps_after_forecast: int
+    min_tail_actual_steps: int
     next_step_id: int = 0
 
 
@@ -88,6 +90,7 @@ class SpectrumH3Runtime:
         self._history_labels: tuple[Any, ...] | None = None
         self._current_window = float(self.config.window_size)
         self._consecutive_forecasts = 0
+        self._required_actual_refreshes = 0
         self._disabled = False
         self._disable_reason: str | None = None
 
@@ -118,6 +121,8 @@ class SpectrumH3Runtime:
         *,
         supported_sampler: bool,
         max_consecutive_forecasts: int | None = None,
+        min_actual_steps_after_forecast: int = 0,
+        min_tail_actual_steps: int = 0,
     ) -> int:
         if self._run is not None:
             raise RuntimeError("Spectrum H3 runtime already has an active run")
@@ -127,6 +132,12 @@ class SpectrumH3Runtime:
             or max_consecutive_forecasts < 1
         ):
             raise ValueError("max_consecutive_forecasts must be None or an integer >= 1")
+        for name, value in (
+            ("min_actual_steps_after_forecast", min_actual_steps_after_forecast),
+            ("min_tail_actual_steps", min_tail_actual_steps),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be an integer >= 0")
         sigma_values = torch.as_tensor(sigmas).detach().to(device="cpu", dtype=torch.float64).reshape(-1)
         total_steps = max(0, sigma_values.numel() - 1)
         evaluated = sigma_values[:-1]
@@ -145,6 +156,8 @@ class SpectrumH3Runtime:
             sigma_max=sigma_max,
             supported_sampler=effective_supported,
             max_consecutive_forecasts=max_consecutive_forecasts,
+            min_actual_steps_after_forecast=min_actual_steps_after_forecast,
+            min_tail_actual_steps=min_tail_actual_steps,
         )
         self._step = None
         self.forecaster.reset()
@@ -152,6 +165,7 @@ class SpectrumH3Runtime:
         self._history_labels = None
         self._current_window = float(self.config.window_size)
         self._consecutive_forecasts = 0
+        self._required_actual_refreshes = 0
         self._disabled = not effective_supported
         if not supported_sampler:
             self._disable_reason = f"sampler {sampler_name!r} is not allowlisted for one-call solver-step tracking"
@@ -182,6 +196,7 @@ class SpectrumH3Runtime:
         self._history_topology = None
         self._history_labels = None
         self._consecutive_forecasts = 0
+        self._required_actual_refreshes = 0
 
     def coordinate_for_timestep(self, timestep: torch.Tensor | float) -> float:
         if self._run is None:
@@ -208,7 +223,8 @@ class SpectrumH3Runtime:
             raise RuntimeError("predict_noise call count exceeded the supplied sigma schedule")
         coordinate = self.coordinate_for_timestep(timestep)
 
-        tail_start = max(0, self._run.total_steps - self.config.tail_actual_steps)
+        effective_tail = max(self.config.tail_actual_steps, self._run.min_tail_actual_steps)
+        tail_start = max(0, self._run.total_steps - effective_tail)
         advances_window = False
         if self.config.force_actual:
             actual, reason = True, "forced-actual validation mode"
@@ -229,7 +245,11 @@ class SpectrumH3Runtime:
         forecast_limit = self._run.max_consecutive_forecasts
         if not actual and forecast_limit is not None and self._consecutive_forecasts >= forecast_limit:
             actual = True
-            reason = "forecast error refresh"
+            reason = "post-forecast sampler refresh"
+            advances_window = False
+        if not actual and self._required_actual_refreshes > 0:
+            actual = True
+            reason = "post-forecast sampler refresh"
             advances_window = False
 
         self._step = _StepState(
@@ -442,6 +462,7 @@ class SpectrumH3Runtime:
             if step.used_history_rows != expected_rows:
                 raise ForecastRetryActual("forecast branch-row allocation was incomplete")
             self._consecutive_forecasts += 1
+            self._required_actual_refreshes = self._run.min_actual_steps_after_forecast
             self.stats.forecast_steps += 1
             self.stats.forecast_model_calls += len(step.calls)
         else:
@@ -454,6 +475,7 @@ class SpectrumH3Runtime:
                 except ValueError as exc:
                     self._disable_forecasting(f"actual H3 feature is incompatible with history: {exc}")
             self._consecutive_forecasts = 0
+            self._required_actual_refreshes = max(0, self._required_actual_refreshes - 1)
             self.stats.actual_steps += 1
             self.stats.actual_transformer_calls += len(step.actual_records)
             if (

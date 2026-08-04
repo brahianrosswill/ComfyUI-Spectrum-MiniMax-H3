@@ -56,7 +56,7 @@ The node accepts and returns `MODEL`. Disabled mode returns the original model o
 | `window_size` | `2.0` | Initial adaptive interval. |
 | `flex_window` | `0.75` | Amount added to the interval after a scheduled post-warmup actual step. |
 | `warmup_steps` | `5` | Initial solver steps forced to native transformer evaluation. |
-| `tail_actual_steps` | `1` | Final solver step forced to native transformer evaluation. |
+| `tail_actual_steps` | `1` | Requested final native tail. Deterministic RES enforces a sampler-safe minimum of `3`. |
 | `max_history` | `8` | Maximum model-dtype actual feature snapshots retained on CPU. |
 | `debug` | `false` | Enables concise run, step, topology, fallback, sanitization, chunk, and teardown logs. |
 
@@ -100,11 +100,12 @@ Warmup and final-tail steps are actual. After warmup, with current interval `W`,
 
 After a successfully completed scheduled actual step, `W` increases by `flex_window`. A fallback actual step does not increase it. Forecasting also waits until at least `max(2, degree + 1)` actual history points exist.
 
-For a 20-step deterministic Euler or RES run, the quality-safe scheduler currently produces:
+For a 20-step run with the conservative settings, the sampler-aware scheduler currently produces:
 
-| Actual H3 solver steps | Forecasted solver steps | Transformer-step reduction |
-|---:|---:|---:|
-| 13 | 7 | 35% |
+| Sampler | Actual H3 solver steps | Forecasted solver steps | Forecast indices | Transformer-step reduction |
+|---|---:|---:|---|---:|
+| Euler | 13 | 7 | `5, 7, 9, 11, 13, 15, 17` | 35% |
+| RES multistep / CFG++ | 16 | 4 | `5, 8, 11, 14` | 20% |
 
 These counts are solver-step counts. CFG can execute separate conditional and unconditional H3 transformer calls on each actual solver step. End-to-end wall-clock speedup depends on output-head cost, CPU transfers, model offload, references, CFG branching, latent size, and hardware.
 
@@ -116,7 +117,7 @@ Forecasting is currently allowlisted for:
 - RES multistep (`sample_res_multistep`)
 - RES multistep CFG++ (`sample_res_multistep_cfg_pp`)
 
-The reviewed implementations make one `predict_noise` call per solver iteration. RES multistep reuses the previous denoised result in its second-order solver update. Euler feeds each approximate denoised result into the latent used by the next evaluation. MiniMax H3 jointly predicts audio and video, so Spectrum forces an actual H3 refresh after every forecast for both deterministic samplers. This bounds forecast-error accumulation and prevents late three-step forecast streaks on short schedules. Ancestral samplers execute native MiniMax H3 because injected noise invalidates the smooth deterministic feature trajectory used by the forecaster. Debug mode logs the exact fallback or refresh reason. Multi-GPU parallel sampling also remains native because distributed forecast-row transactions are not yet validated.
+The reviewed implementations make one `predict_noise` call per solver iteration. Euler feeds each approximate denoised result into the latent used by the next evaluation, so it requires one completed actual H3 evaluation after every forecast. RES multistep also stores the current denoised result as `old_denoised` for the following second-order update. A single actual evaluation after a forecast still performs its update with forecast-derived history; RES therefore requires two completed actual evaluations before another forecast and always keeps its final three solver steps native. The RES tail floor applies even when a saved workflow supplies a smaller `tail_actual_steps` value. Ancestral samplers execute native MiniMax H3 because injected noise invalidates the smooth deterministic feature trajectory used by the forecaster. Debug mode logs the exact fallback, tail, or post-forecast refresh reason. Multi-GPU parallel sampling also remains native because distributed forecast-row transactions are not yet validated.
 
 ## Memory design
 

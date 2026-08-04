@@ -25,6 +25,13 @@ SUPPORTED_SINGLE_CALL_SAMPLERS = frozenset(
     }
 )
 
+RES_MULTISTEP_SAMPLERS = frozenset(
+    {
+        "sample_res_multistep",
+        "sample_res_multistep_cfg_pp",
+    }
+)
+
 
 @dataclass(slots=True)
 class SpectrumH3Binding:
@@ -42,6 +49,17 @@ def sampler_is_supported(sampler: Any) -> bool:
 
 def max_consecutive_forecasts(sampler: Any) -> int | None:
     return 1 if sampler_is_supported(sampler) else None
+
+
+def min_actual_steps_after_forecast(sampler: Any) -> int:
+    name = sampler_name(sampler)
+    if name in RES_MULTISTEP_SAMPLERS:
+        return 2
+    return 1 if name == "sample_euler" else 0
+
+
+def min_tail_actual_steps(sampler: Any) -> int:
+    return 3 if sampler_name(sampler) in RES_MULTISTEP_SAMPLERS else 0
 
 
 def _binding_from_model_options(model_options: dict[str, Any] | None) -> SpectrumH3Binding | None:
@@ -100,6 +118,8 @@ def outer_sample_wrapper(
         name,
         supported_sampler=sampler_is_supported(sampler),
         max_consecutive_forecasts=max_consecutive_forecasts(sampler),
+        min_actual_steps_after_forecast=min_actual_steps_after_forecast(sampler),
+        min_tail_actual_steps=min_tail_actual_steps(sampler),
     )
     if runtime.config.debug:
         LOG.warning(

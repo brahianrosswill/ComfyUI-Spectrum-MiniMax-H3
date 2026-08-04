@@ -41,7 +41,7 @@ This preserves:
 
 ## Sampler contract
 
-Solver-step IDs are assigned by a `PREDICT_NOISE` wrapper inside an `OUTER_SAMPLE` run transaction. Forecasting is allowlisted only for deterministic native `sample_euler`, `sample_res_multistep`, and `sample_res_multistep_cfg_pp`, whose reviewed implementations perform exactly one `predict_noise` call per solver iteration. Every forecast is followed by an actual H3 refresh. This prevents RES from combining two approximate denoised results and limits iterative forecast-error accumulation in Euler's latent trajectory. Ancestral variants remain native because they inject noise between model evaluations. Other samplers remain native and report a debug fallback reason.
+Solver-step IDs are assigned by a `PREDICT_NOISE` wrapper inside an `OUTER_SAMPLE` run transaction. Forecasting is allowlisted only for deterministic native `sample_euler`, `sample_res_multistep`, and `sample_res_multistep_cfg_pp`, whose reviewed implementations perform exactly one `predict_noise` call per solver iteration. Euler requires one completed actual H3 evaluation after every forecast. RES stores each current denoised result for the following second-order update, so it requires two completed actual evaluations before another forecast and enforces a three-step actual tail. These sampler floors are applied at run time and cannot be weakened by an older saved workflow. Ancestral variants remain native because they inject noise between model evaluations. Other samplers remain native and report a debug fallback reason.
 
 Coordinates are derived from the actual supplied sigma sequence. Evaluated sigma values are affinely normalized between the run's evaluated minimum and maximum into `[-1, 1]`; no fixed step count is assumed.
 

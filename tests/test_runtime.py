@@ -215,13 +215,14 @@ def test_twenty_step_preset_schedule_counts(flex_window, tail_actual_steps, expe
     assert actual_indices == expected_indices
 
 
-def test_res_multistep_refreshes_after_each_forecast_without_growing_the_window():
+def test_res_multistep_clears_recurrence_with_two_refreshes_without_growing_the_window():
     runtime = _runtime(warmup_steps=2, flex_window=0.75, window_size=4.0)
     runtime.start_run(
         torch.linspace(1.0, 0.0, 8),
         "sample_res_multistep",
         supported_sampler=True,
         max_consecutive_forecasts=1,
+        min_actual_steps_after_forecast=2,
     )
     decisions = []
     for step, sigma in enumerate(torch.linspace(1.0, 1.0 / 7.0, 7)):
@@ -252,22 +253,25 @@ def test_res_multistep_refreshes_after_each_forecast_without_growing_the_window(
         runtime.finalize_step(decision["run_id"], decision["step_id"])
 
     forecast_indices = [decision["step_id"] for decision in decisions if not decision["actual"]]
-    assert forecast_indices == [2, 4, 6]
-    assert decisions[3]["reason"] == "forecast error refresh"
-    assert decisions[5]["reason"] == "forecast error refresh"
+    assert forecast_indices == [2, 5]
+    assert decisions[3]["reason"] == "post-forecast sampler refresh"
+    assert decisions[4]["reason"] == "post-forecast sampler refresh"
+    assert decisions[6]["reason"] == "post-forecast sampler refresh"
     assert runtime.stats.current_window == pytest.approx(4.0)
 
 
-def test_twenty_step_res_schedule_never_combines_adjacent_forecasts():
-    runtime = SpectrumH3Runtime(SpectrumH3Config())
+def test_twenty_step_res_schedule_clears_recurrence_and_enforces_three_step_tail():
+    runtime = SpectrumH3Runtime(SpectrumH3Config(tail_actual_steps=0))
     runtime.start_run(
         torch.linspace(1.0, 0.0, 21),
         "sample_res_multistep",
         supported_sampler=True,
         max_consecutive_forecasts=1,
+        min_actual_steps_after_forecast=2,
+        min_tail_actual_steps=3,
     )
     forecast_indices = []
-    previous_was_forecast = False
+    actuals_since_forecast = 2
     for step, sigma in enumerate(torch.linspace(1.0, 0.05, 20)):
         decision = runtime.begin_step(sigma)
         call_id, actual = runtime.begin_model_call(
@@ -285,7 +289,7 @@ def test_twenty_step_res_schedule_never_combines_adjacent_forecasts():
                 torch.full((1, 3, 4), float(step)),
             )
         else:
-            assert not previous_was_forecast
+            assert actuals_since_forecast >= 2
             forecast_indices.append(step)
             runtime.predict(
                 decision["run_id"],
@@ -294,12 +298,37 @@ def test_twenty_step_res_schedule_never_combines_adjacent_forecasts():
                 device=torch.device("cpu"),
                 dtype=torch.float32,
             )
-        previous_was_forecast = not actual
+        actuals_since_forecast = actuals_since_forecast + 1 if actual else 0
         runtime.finalize_step(decision["run_id"], decision["step_id"])
 
-    assert forecast_indices == [5, 7, 9, 11, 13, 15, 17]
-    assert runtime.stats.actual_steps == 13
-    assert runtime.stats.forecast_steps == 7
+    assert forecast_indices == [5, 8, 11, 14]
+    assert runtime.stats.actual_steps == 16
+    assert runtime.stats.forecast_steps == 4
+
+
+def test_aborted_res_refresh_does_not_consume_recurrence_safety_state():
+    runtime = _runtime(warmup_steps=2, window_size=4.0, tail_actual_steps=0)
+    run_id = runtime.start_run(
+        torch.linspace(1.0, 0.0, 7),
+        "sample_res_multistep",
+        supported_sampler=True,
+        max_consecutive_forecasts=1,
+        min_actual_steps_after_forecast=2,
+    )
+    _actual_step(runtime, 1.0, [(LABEL, torch.zeros(1, 3, 4))])
+    _actual_step(runtime, 5.0 / 6.0, [(LABEL, torch.ones(1, 3, 4))])
+    _forecast_step(runtime, 4.0 / 6.0)
+
+    decision = runtime.begin_step(torch.tensor([3.0 / 6.0]))
+    assert decision["actual"]
+    assert decision["reason"] == "post-forecast sampler refresh"
+    runtime.abort_step(run_id, decision["step_id"])
+
+    retried = runtime.begin_step(torch.tensor([3.0 / 6.0]))
+    assert retried["step_id"] == decision["step_id"]
+    assert retried["actual"]
+    assert retried["reason"] == "post-forecast sampler refresh"
+    runtime.abort_step(run_id, retried["step_id"])
 
 
 def test_twenty_step_euler_schedule_refreshes_between_forecasts():
